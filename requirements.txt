@@ -1,8 +1,15 @@
+qwen-tts
+torch
+transformers
+accelerate
+soundfile
 runpod
 torch
 transformers
 accelerate
 soundfile
-qwen-tts
+huggingface_hub
+sentencepiece
+git+https://github.com/QwenLM/Qwen3-TTS.git
 huggingface_hub
 sentencepiece
