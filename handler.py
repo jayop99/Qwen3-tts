@@ -3,24 +3,21 @@ import torch
 import base64
 import soundfile as sf
 from io import BytesIO
-from transformers import AutoTokenizer, AutoModelForSpeechSeq2Seq, pipeline
+from transformers import pipeline
 
-MODEL_NAME = "Qwen/Qwen3-TTS"
+MODEL_NAME = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 
-print("Loading model...")
-
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+print("Loading TTS pipeline...")
 
 tts = pipeline(
     "text-to-speech",
     model=MODEL_NAME,
-    device=0
+    device=0 if torch.cuda.is_available() else -1
 )
 
 print("Model loaded.")
 
-def generate_audio(text):
-
+def generate_audio(text: str):
     with torch.no_grad():
         audio = tts(text)
 
@@ -29,17 +26,13 @@ def generate_audio(text):
 
     buffer = BytesIO()
     sf.write(buffer, audio_array, sampling_rate, format="WAV")
-
     audio_bytes = buffer.getvalue()
-    encoded_audio = base64.b64encode(audio_bytes).decode()
 
+    encoded_audio = base64.b64encode(audio_bytes).decode()
     return encoded_audio
 
-
 def handler(event):
-
     inputs = event.get("input", {})
-
     texts = inputs.get("texts")
 
     if not texts:
@@ -49,16 +42,9 @@ def handler(event):
         texts = [text]
 
     results = []
-
     for text in texts:
-        audio = generate_audio(text)
-        results.append(audio)
+        results.append(generate_audio(text))
 
-    return {
-        "audios": results
-    }
+    return {"audios": results}
 
-
-runpod.serverless.start({
-    "handler": handler
-})
+runpod.serverless.start({"handler": handler})
