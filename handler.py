@@ -3,48 +3,37 @@ import torch
 import base64
 import soundfile as sf
 from io import BytesIO
-from transformers import pipeline
+from qwen_tts import Qwen3TTSModel
 
 MODEL_NAME = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 
-print("Loading TTS pipeline...")
+print("Loading Qwen3 TTS model...")
 
-tts = pipeline(
-    "text-to-speech",
-    model=MODEL_NAME,
-    device=0 if torch.cuda.is_available() else -1
+model = Qwen3TTSModel.from_pretrained(
+    MODEL_NAME,
+    device_map="cuda:0" if torch.cuda.is_available() else "cpu",
+    dtype=torch.bfloat16
 )
 
 print("Model loaded.")
 
-def generate_audio(text: str):
-    with torch.no_grad():
-        audio = tts(text)
-
-    audio_array = audio["audio"]
-    sampling_rate = audio["sampling_rate"]
+def generate_audio(text):
+    wavs, sr = model.generate_custom_voice(
+        text=text,
+        language="English"
+    )
 
     buffer = BytesIO()
-    sf.write(buffer, audio_array, sampling_rate, format="WAV")
+    sf.write(buffer, wavs[0], sr, format="WAV")
     audio_bytes = buffer.getvalue()
 
-    encoded_audio = base64.b64encode(audio_bytes).decode()
-    return encoded_audio
+    return base64.b64encode(audio_bytes).decode()
+
 
 def handler(event):
-    inputs = event.get("input", {})
-    texts = inputs.get("texts")
+    text = event["input"]["text"]
+    audio = generate_audio(text)
+    return {"audio": audio}
 
-    if not texts:
-        text = inputs.get("text")
-        if not text:
-            return {"error": "Provide 'text' or 'texts'"}
-        texts = [text]
-
-    results = []
-    for text in texts:
-        results.append(generate_audio(text))
-
-    return {"audios": results}
 
 runpod.serverless.start({"handler": handler})
