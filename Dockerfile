@@ -1,5 +1,4 @@
-FROM runpod/pytorch:2.1.0-py3.10-cuda12.1
-
+FROM runpod/pytorch:2.1.0-py3.10-cuda11.8
 WORKDIR /app
 
 COPY . .
