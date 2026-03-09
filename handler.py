@@ -1,110 +1,81 @@
 import runpod
 import torch
-import soundfile as sf
 import base64
 import io
-from qwen_tts import Qwen3TTSModel
+from transformers import AutoModelForTextToSpeech, AutoTokenizer
+import soundfile as sf
 
-# Global model instance (loaded once per worker)
+# Global variables for model caching
 model = None
+tokenizer = None
 
 def load_model():
-    """Load Qwen3-TTS model once at startup"""
-    global model
+    """Load Qwen3-TTS model once and cache it"""
+    global model, tokenizer
     
     if model is None:
         print("Loading Qwen3-TTS model...")
+        model_id = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
         
-        # Determine device
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-        
-        print(f"Using device: {device}, dtype: {dtype}")
-        
-        # Load model with flash attention if available
-        try:
-            model = Qwen3TTSModel.from_pretrained(
-                "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
-                device_map=device,
-                dtype=dtype,
-                attn_implementation="flash_attention_2"
-            )
-            print("Model loaded with Flash Attention 2")
-        except Exception as e:
-            print(f"Flash Attention failed ({e}), falling back to default")
-            model = Qwen3TTSModel.from_pretrained(
-                "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
-                device_map=device,
-                dtype=dtype
-            )
-            print("Model loaded with default attention")
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModelForTextToSpeech.from_pretrained(
+            model_id,
+            torch_dtype=torch.float16,
+            device_map="auto"
+        )
+        print("Model loaded successfully!")
     
-    return model
+    return model, tokenizer
 
-def handler(job):
+def handler(event):
     """
     RunPod serverless handler for Qwen3-TTS
-    Input: { "input": { "text": "Hello world", "speaker": "Vivian", "language": "English", "instruct": "" } }
-    Output: { "audio": "base64_encoded_wav", "sample_rate": 24000 }
+    Expected input: {"input": {"text": "Hello this is a test"}}
+    Returns: {"audio": "base64_encoded_wav"}
     """
-    job_input = job.get("input", {})
-    
-    # Extract parameters
-    text = job_input.get("text")
-    speaker = job_input.get("speaker", "Vivian")  # Default speaker
-    language = job_input.get("language", "English")
-    instruct = job_input.get("instruct", "")  # Voice style instruction
-    
-    if not text:
-        return {"error": "No text provided in input"}
-    
     try:
-        # Load model (cached after first call)
-        tts_model = load_model()
+        # Extract text from input
+        input_data = event.get("input", {})
+        text = input_data.get("text", "")
+        
+        if not text:
+            return {"error": "No text provided in input"}
         
         print(f"Generating speech for: {text[:50]}...")
         
-        # Generate audio using CustomVoice model
-        if instruct:
-            # With instruction control (1.7B model feature)
-            wavs, sr = tts_model.generate_custom_voice(
-                text=text,
-                language=language,
-                speaker=speaker,
-                instruct=instruct
-            )
-        else:
-            # Without instruction
-            wavs, sr = tts_model.generate_custom_voice(
-                text=text,
-                language=language,
-                speaker=speaker
-            )
+        # Load model (cached after first call)
+        model, tokenizer = load_model()
         
-        # Convert to WAV bytes
-        wav_buffer = io.BytesIO()
-        sf.write(wav_buffer, wavs[0], sr, format='WAV')
-        wav_buffer.seek(0)
-        wav_bytes = wav_buffer.read()
+        # Tokenize input
+        inputs = tokenizer(text, return_tensors="pt").to(model.device)
+        
+        # Generate audio
+        with torch.no_grad():
+            outputs = model.generate(**inputs)
+        
+        # Convert to audio array
+        audio_array = outputs.cpu().numpy().squeeze()
+        
+        # Convert to WAV format in memory
+        buffer = io.BytesIO()
+        sf.write(buffer, audio_array, samplerate=12000, format='WAV')
+        buffer.seek(0)
         
         # Encode to base64
-        audio_b64 = base64.b64encode(wav_bytes).decode('utf-8')
+        audio_base64 = base64.b64encode(buffer.read()).decode('utf-8')
         
-        print(f"Generated audio: {len(wav_bytes)} bytes, sample rate: {sr}")
+        print("Audio generation complete!")
         
         return {
-            "audio": audio_b64,
-            "sample_rate": sr,
+            "audio": audio_base64,
             "format": "wav",
-            "speaker": speaker,
-            "language": language
+            "sample_rate": 12000
         }
         
     except Exception as e:
-        print(f"Error during generation: {str(e)}")
+        print(f"Error: {str(e)}")
         return {"error": str(e)}
 
-# Start RunPod serverless worker
+# Start RunPod serverless handler
 if __name__ == "__main__":
-    print("Starting Qwen3-TTS RunPod Serverless Worker...")
     runpod.serverless.start({"handler": handler})
