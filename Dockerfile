@@ -1,4 +1,4 @@
-FROM runpod/pytorch:2.1.0-py3.10-cuda12.1.1-devel-ubuntu22.04
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-devel
 
 WORKDIR /app
 
@@ -15,7 +15,6 @@ RUN pip install --no-cache-dir --upgrade pip
 
 # Force install latest transformers (CRITICAL!)
 RUN pip install --no-cache-dir transformers>=4.47.0
-RUN pip install --no-cache-dir torch>=2.1.0 torchaudio>=2.1.0
 RUN pip install --no-cache-dir accelerate>=0.34.0
 RUN pip install --no-cache-dir huggingface-hub>=0.25.0
 
