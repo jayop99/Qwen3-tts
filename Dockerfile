@@ -22,9 +22,6 @@ RUN pip install --no-cache-dir \
     huggingface-hub>=0.25.0 \
     && rm -rf ~/.cache/pip
 
-RUN pip install --no-cache-dir flash-attn --no-build-isolation || \
-    echo "WARNING: flash-attn skipped - still works fine"
-
 COPY handler.py .
 
 CMD ["python", "-u", "handler.py"]
