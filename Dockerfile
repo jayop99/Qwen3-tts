@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir \
     torchaudio>=2.1.0 \
     sentencepiece \
     protobuf \
+    soundfile \
     && rm -rf ~/.cache/pip
 
 # Copy requirements first for better caching
