@@ -1,23 +1,27 @@
-# RunPod SDK
-runpod>=1.7.0
+# Core ML Libraries
+transformers>=4.47.0
+torch>=2.4.0
+torchaudio>=2.4.0
+accelerate>=0.34.0
+huggingface-hub>=0.25.0
 
-# Qwen3-TTS official package
-qwen-tts
+# Model Dependencies
+sentencepiece>=0.2.0
+protobuf>=5.27.0
+safetensors>=0.4.0
 
-# Core dependencies (qwen-tts will install these, but pinning for safety)
-torch>=2.0.0
-transformers==4.57.3
-accelerate>=1.0.0
-einops
-soundfile
-librosa
-torchaudio
-numpy
+# Audio Processing
+soundfile>=0.12.1
+librosa>=0.10.2
+scipy>=1.14.0
+numpy>=1.26.0
 
-# Audio processing
-sox
-onnxruntime
+# Web Server
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.9
+pydantic>=2.9.0
 
-# Model loading
-huggingface_hub
-sentencepiece
+# Utilities
+requests>=2.32.3
+python-dotenv>=1.0.1
