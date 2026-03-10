@@ -1,27 +1,5 @@
-# Core ML Libraries
-transformers>=4.47.0
-torch>=2.4.0
-torchaudio>=2.4.0
-accelerate>=0.34.0
+runpod
+qwen-tts
+soundfile
+scipy
 huggingface-hub>=0.25.0
-
-# Model Dependencies
-sentencepiece>=0.2.0
-protobuf>=5.27.0
-safetensors>=0.4.0
-
-# Audio Processing
-soundfile>=0.12.1
-librosa>=0.10.2
-scipy>=1.14.0
-numpy>=1.26.0
-
-# Web Server
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
-python-multipart>=0.0.9
-pydantic>=2.9.0
-
-# Utilities
-requests>=2.32.3
-python-dotenv>=1.0.1
