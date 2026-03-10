@@ -1,28 +1,33 @@
-FROM python:3.10-slim
+FROM runpod/pytorch:2.4.0-py3.10-cuda12.4.1-devel-ubuntu22.04
 
 WORKDIR /app
 
-# Install system dependencies FIRST (including git and build tools)
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     build-essential \
     libsndfile1 \
-    sox \
-    libsox-fmt-all \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip
 
+# Force install latest transformers (CRITICAL!)
+RUN pip install --no-cache-dir transformers>=4.47.0
+RUN pip install --no-cache-dir torch>=2.4.0 torchaudio>=2.4.0
+RUN pip install --no-cache-dir accelerate>=0.34.0
+RUN pip install --no-cache-dir huggingface-hub>=0.25.0
+
 # Copy requirements first for better caching
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy handler code
 COPY handler.py .
+
+# Set environment variable
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
 
 # RunPod serverless command
 CMD ["python", "-u", "handler.py"]
