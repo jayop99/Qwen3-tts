@@ -1,27 +1,37 @@
-import runpod
-import torch
-import base64
-import io
 import os
-from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
-from soundfile import write as soundfile_write
+import io
+import base64
+import torch
+import traceback
+import runpod
+from transformers import AutoProcessor, AutoModelForTextToSpeech
+from huggingface_hub import login
+import torchaudio
+
+# 🔑 CRITICAL: Login with HF_TOKEN before loading model
+if os.getenv("HF_TOKEN"):
+    login(token=os.getenv("HF_TOKEN"))
+    print("✅ HF_TOKEN login successful")
+else:
+    print("❌ HF_TOKEN not found!")
+
+MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 
 # Global model cache
 model = None
 processor = None
+device = None
 
 def load_model():
     """Load the Qwen3-TTS model (called once at startup)"""
-    global model, processor
+    global model, processor, device
     
-    model_id = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
-    
-    print(f"Loading model: {model_id}")
+    print(f"🔄 Loading model: {MODEL_ID}")
     
     # Load processor and model
-    processor = AutoProcessor.from_pretrained(model_id)
-    model = AutoModelForSpeechSeq2Seq.from_pretrained(
-        model_id,
+    processor = AutoProcessor.from_pretrained(MODEL_ID)
+    model = AutoModelForTextToSpeech.from_pretrained(
+        MODEL_ID,
         torch_dtype=torch.float16,
         low_cpu_mem_usage=True,
         use_safetensors=True
@@ -31,23 +41,21 @@ def load_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     
-    print(f"Model loaded successfully on {device}")
+    print(f"✅ Model loaded successfully on {device}")
     return device
 
 def handler(event):
     """RunPod serverless handler"""
     try:
-        global model, processor
+        global model, processor, device
         
         # Load model if not already loaded
-        if model is None:
+        if model is None or processor is None:
             device = load_model()
-        else:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        # Extract input
+        # Extract input (RunPod uses "input" -> "prompt")
         input_data = event.get("input", {})
-        text = input_data.get("text", "")
+        text = input_data.get("prompt", "")
         
         if not text:
             return {
@@ -55,7 +63,7 @@ def handler(event):
                 "statusCode": 400
             }
         
-        print(f"Generating speech for: {text}")
+        print(f"🎤 Generating speech for: {text}")
         
         # Prepare input
         inputs = processor(text, return_tensors="pt").to(device)
@@ -69,7 +77,7 @@ def handler(event):
         
         # Save to WAV buffer
         buffer = io.BytesIO()
-        soundfile_write(buffer, audio_np, samplerate=16000, format='WAV')
+        torchaudio.save(buffer, torch.tensor(audio_np).unsqueeze(0), processor.sampling_rate, format='WAV')
         buffer.seek(0)
         
         # Encode to base64
@@ -77,13 +85,12 @@ def handler(event):
         
         return {
             "audio": audio_base64,
-            "samplerate": 16000,
+            "samplerate": processor.sampling_rate,
             "format": "wav"
         }
-        
+    
     except Exception as e:
-        print(f"Error: {str(e)}")
-        import traceback
+        print(f"❌ Error: {str(e)}")
         traceback.print_exc()
         return {
             "error": str(e),
@@ -92,6 +99,6 @@ def handler(event):
 
 # Initialize model on startup
 if __name__ == "__main__":
-    print("Starting Qwen3-TTS serverless endpoint...")
+    print("🚀 Starting Qwen3-TTS serverless endpoint...")
     load_model()
-    print("Server ready!")
+    print("✅ Server ready!")
