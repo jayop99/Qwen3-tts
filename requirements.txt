@@ -3,3 +3,4 @@ qwen-tts
 soundfile
 scipy
 huggingface-hub>=0.25.0
+
