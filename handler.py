@@ -8,12 +8,25 @@ from transformers import AutoProcessor, AutoModelForTextToSpeech
 from huggingface_hub import login
 import torchaudio
 
-# 🔑 CRITICAL: Login with HF_TOKEN before loading model
+# 🔑 CRITICAL: Debug HF_TOKEN status
+print("=" * 50)
+print("🔍 DEBUG: Starting handler.py")
+print(f"🔑 HF_TOKEN present: {bool(os.getenv('HF_TOKEN'))}")
 if os.getenv("HF_TOKEN"):
-    login(token=os.getenv("HF_TOKEN"))
-    print("✅ HF_TOKEN login successful")
+    print(f"🔑 HF_TOKEN starts with: {os.getenv('HF_TOKEN')[:8]}...")
+    print("🔑 HF_TOKEN length:", len(os.getenv("HF_TOKEN")))
+    try:
+        login(token=os.getenv("HF_TOKEN"))
+        print("✅ HF_TOKEN login successful")
+    except Exception as e:
+        print(f"❌ HF_TOKEN login failed: {str(e)}")
+        raise
 else:
     print("❌ HF_TOKEN not found!")
+    print("❌ Check RunPod Environment Variables!")
+    raise Exception("HF_TOKEN not found")
+
+print("=" * 50)
 
 MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 
@@ -27,22 +40,38 @@ def load_model():
     global model, processor, device
     
     print(f"🔄 Loading model: {MODEL_ID}")
+    print(f"🔥 GPU available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"🔥 GPU name: {torch.cuda.get_device_name(0)}")
+        print(f"🔥 GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     
-    # Load processor and model
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
-    model = AutoModelForTextToSpeech.from_pretrained(
-        MODEL_ID,
-        torch_dtype=torch.float16,
-        low_cpu_mem_usage=True,
-        use_safetensors=True
-    )
+    try:
+        # Load processor and model
+        print("📥 Downloading processor...")
+        processor = AutoProcessor.from_pretrained(MODEL_ID)
+        print("✅ Processor loaded")
+        
+        print("📥 Downloading model...")
+        model = AutoModelForTextToSpeech.from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            use_safetensors=True
+        )
+        print("✅ Model loaded")
+        
+        # Move to GPU if available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"🔥 Moving model to {device}...")
+        model.to(device)
+        
+        print(f"✅ Model loaded successfully on {device}")
+        return device
     
-    # Move to GPU if available
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
-    
-    print(f"✅ Model loaded successfully on {device}")
-    return device
+    except Exception as e:
+        print(f"❌ Model loading failed: {str(e)}")
+        traceback.print_exc()
+        raise
 
 def handler(event):
     """RunPod serverless handler"""
@@ -90,7 +119,7 @@ def handler(event):
         }
     
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"❌ Handler Error: {str(e)}")
         traceback.print_exc()
         return {
             "error": str(e),
