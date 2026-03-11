@@ -14,9 +14,13 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --no-cache-dir --upgrade pip
 
+# Install from GitHub directly (official source)
+RUN git clone https://github.com/QwenLM/Qwen3-TTS.git /tmp/Qwen3-TTS && \
+    pip install --no-cache-dir -e /tmp/Qwen3-TTS && \
+    rm -rf ~/.cache/pip
+
 RUN pip install --no-cache-dir \
     runpod \
-    qwen-tts \
     soundfile \
     scipy \
     huggingface-hub>=0.25.0 \
@@ -25,3 +29,6 @@ RUN pip install --no-cache-dir \
 COPY handler.py .
 
 CMD ["python", "-u", "handler.py"]
+Also replace requirements.txt with just:
+soundfile
+scipy
