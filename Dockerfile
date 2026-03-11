@@ -1,31 +1,25 @@
-FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-devel
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONUNBUFFERED=1
+# Start with a GPU-ready image
+FROM runpod/pytorch:2.2.1-py3.10-cuda12.1.1-devel-ubuntu22.04
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    build-essential \
-    libsndfile1 \
-    ffmpeg \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# 1. Install system audio tools
+RUN apt-get update && apt-get install -y ffmpeg sox libsox-dev git && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip
+# 2. Clone the official Qwen3-TTS repo
+RUN git clone https://github.com/QwenLM/Qwen3-TTS.git .
 
-# Install Python dependencies
-# We install qwen-tts directly from GitHub to get the latest version
-RUN pip install --no-cache-dir \
-    runpod \
-    soundfile \
-    scipy \
-    huggingface-hub>=0.25.0 \
-    git+https://github.com/QwenLM/Qwen3-TTS.git
+# 3. Install the dependencies from their requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY handler.py .
+# 4. Install the package in editable mode (standard for this repo)
+RUN pip install -e .
 
-CMD ["python", "-u", "handler.py"]
+# 5. Fast Attention is a must for your <1s goal
+RUN pip install -U flash-attn --no-build-isolation
+
+# Copy your specific app.py that calls the VoiceDesign model
+COPY app.py .
+
+EXPOSE 8000
+CMD ["python", "app.py"]
